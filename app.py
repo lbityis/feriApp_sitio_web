@@ -26,70 +26,111 @@ def db():
         raise ValueError("DATABASE_URL no está configurada en las variables de entorno.")
     return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
 
+
+def crear_tablas():
+    conexion = db()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                correo VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                tipo_usuario VARCHAR(50) DEFAULT 'cliente',
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS productos (
+                id SERIAL PRIMARY KEY,
+                vendedor_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                nombre VARCHAR(150) NOT NULL,
+                categoria VARCHAR(50) NOT NULL,
+                descripcion TEXT,
+                precio INT NOT NULL,
+                cantidad VARCHAR(50),
+                ubicacion VARCHAR(150),
+                activo INT DEFAULT 1,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS mensajes (
+                id SERIAL PRIMARY KEY,
+                remitente_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                destinatario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                contenido TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            conexion.commit()
+    except Exception as e:
+        conexion.rollback()
+        print(f"Error al crear tablas: {e}")
+    finally:
+        conexion.close()
+
+
 def poblar_catalogo():
     conexion = db()
     try:
         with conexion.cursor() as cursor:
-            # Verificar si ya existen productos para no duplicar datos
-            cursor.execute("SELECT COUNT(*) AS total FROM productos;")
-            total = cursor.fetchone()["total"]
+            # Obtener usuario existente o crear uno de prueba si la tabla está vacía
+            cursor.execute("SELECT id FROM usuarios LIMIT 1;")
+            usuario = cursor.fetchone()
             
-            if total == 0:
-                # 1. Crear un usuario de prueba (feriante)
+            if not usuario:
                 hash_pw = bcrypt.generate_password_hash("12345678").decode("utf-8")
                 cursor.execute("""
                     INSERT INTO usuarios (nombre, correo, password_hash, tipo_usuario)
                     VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (correo) DO NOTHING
                     RETURNING id;
                 """, ("Feria La Central", "contacto@lacentral.cl", hash_pw, "feriante"))
-                
                 usuario = cursor.fetchone()
-                if not usuario:
-                    cursor.execute("SELECT id FROM usuarios WHERE correo=%s;", ("contacto@lacentral.cl",))
-                    usuario = cursor.fetchone()
-                
-                vendedor_id = usuario["id"]
 
-                # 2. Insertar catálogo variado de productos
-                productos_ejemplo = [
-                    (vendedor_id, "Manzanas Fuji Frescas", "Frutas", "Manzanas crujientes y jugosas recién cosechadas.", 1200, "1 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Naranjas de Cítricos del Valle", "Frutas", "Naranjas dulces ideales para jugo natural.", 1500, "1.5 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Plátanos Maduros", "Frutas", "Plátanos de primera calidad, listos para consumo.", 1100, "1 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Zanahorias Orgánicas", "Verduras", "Zanahorias frescas sin pesticidas.", 800, "1 kg", "Puesto 14 - La Central"),
-                    (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central"),
-                    (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central"),
-                    (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central"),
-                    (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central"),
-                    (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central"),
-                    (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central")
-                ]
+            vendedor_id = usuario["id"]
 
-                cursor.executemany("""
-                    INSERT INTO productos (vendedor_id, nombre, categoria, descripcion, precio, cantidad, ubicacion)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s);
-                """, productos_ejemplo)
+            # Limpiar registros de muestra previos para evitar duplicaciones
+            cursor.execute("DELETE FROM productos WHERE ubicacion LIKE '%La Central%';")
 
-                conexion.commit()
-                print("Catálogo inicial cargado correctamente.")
+            productos_ejemplo = [
+                (vendedor_id, "Manzanas Fuji Frescas", "Frutas", "Manzanas crujientes y jugosas recién cosechadas.", 1200, "1 kg", "Puesto 12 - La Central", 1),
+                (vendedor_id, "Naranjas del Valle", "Frutas", "Naranjas dulces ideales para jugo natural.", 1500, "1.5 kg", "Puesto 12 - La Central", 1),
+                (vendedor_id, "Plátanos Maduros", "Frutas", "Plátanos de primera calidad, listos para consumo.", 1100, "1 kg", "Puesto 12 - La Central", 1),
+                (vendedor_id, "Zanahorias Orgánicas", "Verduras", "Zanahorias frescas sin pesticidas.", 800, "1 kg", "Puesto 14 - La Central", 1),
+                (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central", 1),
+                (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central", 1),
+                (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central", 1),
+                (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central", 1),
+                (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central", 1),
+                (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central", 1)
+            ]
+
+            cursor.executemany("""
+                INSERT INTO productos (vendedor_id, nombre, categoria, descripcion, precio, cantidad, ubicacion, activo)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+            """, productos_ejemplo)
+
+            conexion.commit()
+            print("Catálogo cargado con éxito.")
     except Exception as e:
         conexion.rollback()
         print(f"Error al poblar el catálogo: {e}")
     finally:
         conexion.close()
 
-# Ejecutar la carga de datos de prueba
+
+# Inicialización de la base de datos al arrancar la aplicación
 try:
+    crear_tablas()
     poblar_catalogo()
 except Exception as e:
-    print(f"No se pudo cargar el catálogo: {e}")
+    print(f"No se pudo inicializar la base de datos: {e}")
 
 
 def consulta(sql, params=(), uno=False):
     conexion = db()
     try:
         with conexion.cursor() as cursor:
-            # PostgreSQL utiliza %s como marcador de parámetros al igual que PyMySQL
             cursor.execute(sql, params)
             return cursor.fetchone() if uno else cursor.fetchall()
     finally:
@@ -100,7 +141,6 @@ def ejecutar(sql, params=()):
     conexion = db()
     try:
         with conexion.cursor() as cursor:
-            # RETURNING id permite obtener el ID insertado en PostgreSQL de forma directa
             if "RETURNING" not in sql.upper():
                 sql = sql.rstrip(";") + " RETURNING id;"
             cursor.execute(sql, params)
@@ -141,9 +181,6 @@ def rol_requerido(*roles):
 
 
 def puede_iniciar_contacto(rol_origen, rol_destino):
-    # Clientes solo pueden iniciar conversaciones con feriantes.
-    # Emprendimientos pueden contactar clientes y feriantes.
-    # Feriantes pueden conversar con clientes y emprendimientos.
     if rol_origen == "cliente":
         return rol_destino == "feriante"
     if rol_origen == "feriante":
@@ -160,7 +197,6 @@ def puede_conversar(otro_id):
     mi_rol = session.get("usuario_tipo")
     if puede_iniciar_contacto(mi_rol, otro["tipo_usuario"]):
         return True
-    # Un cliente puede responder a un emprendimiento que ya le escribió primero.
     if mi_rol == "cliente" and otro["tipo_usuario"] == "emprendimiento":
         return bool(consulta("""
             SELECT id FROM mensajes
@@ -387,87 +423,3 @@ def error_servidor(error):
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
-
-def crear_tablas():
-    conexion = db()
-    try:
-        with conexion.cursor() as cursor:
-            cursor.execute("""
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id SERIAL PRIMARY KEY,
-                nombre VARCHAR(100) NOT NULL,
-                correo VARCHAR(100) UNIQUE NOT NULL,
-                password_hash VARCHAR(255) NOT NULL,
-                tipo_usuario VARCHAR(50) DEFAULT 'cliente',
-                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS productos (
-                id SERIAL PRIMARY KEY,
-                vendedor_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
-                nombre VARCHAR(150) NOT NULL,
-                categoria VARCHAR(50) NOT NULL,
-                descripcion TEXT,
-                precio INT NOT NULL,
-                cantidad VARCHAR(50),
-                ubicacion VARCHAR(150),
-                activo INT DEFAULT 1,
-                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS mensajes (
-                id SERIAL PRIMARY KEY,
-                remitente_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
-                destinatario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
-                contenido TEXT NOT NULL,
-                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            """)
-            conexion.commit()
-    except Exception as e:
-        conexion.rollback()
-        print(f"Error al crear tablas: {e}")
-    finally:
-        conexion.close()
-
-# Ejecutar la creación de tablas al cargar la app
-try:
-    crear_tablas()
-except Exception as e:
-    print(f"No se pudieron inicializar las tablas: {e}")
-def poblar_catalogo():
-    conexion = db()
-    try:
-        with conexion.cursor() as cursor:
-            # Obtener o usar la cuenta actual para asociar los productos
-            cursor.execute("SELECT id FROM usuarios LIMIT 1;")
-            usuario = cursor.fetchone()
-            
-            if usuario:
-                vendedor_id = usuario["id"]
-
-                productos_ejemplo = [
-                    (vendedor_id, "Manzanas Fuji Frescas", "Frutas", "Manzanas crujientes y jugosas recién cosechadas.", 1200, "1 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Naranjas del Valle", "Frutas", "Naranjas dulces ideales para jugo natural.", 1500, "1.5 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Plátanos Maduros", "Frutas", "Plátanos de primera calidad, listos para consumo.", 1100, "1 kg", "Puesto 12 - La Central"),
-                    (vendedor_id, "Zanahorias Orgánicas", "Verduras", "Zanahorias frescas sin pesticidas.", 800, "1 kg", "Puesto 14 - La Central"),
-                    (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central"),
-                    (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central"),
-                    (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central"),
-                    (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central"),
-                    (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central"),
-                    (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central")
-                ]
-
-                cursor.executemany("""
-                    INSERT INTO productos (vendedor_id, nombre, categoria, descripcion, precio, cantidad, ubicacion)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s);
-                """, productos_ejemplo)
-
-                conexion.commit()
-                print("Catálogo cargado con éxito.")
-    except Exception as e:
-        conexion.rollback()
-        print(f"Error al poblar el catálogo: {e}")
-    finally:
-        conexion.close()
