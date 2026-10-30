@@ -26,6 +26,64 @@ def db():
         raise ValueError("DATABASE_URL no está configurada en las variables de entorno.")
     return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
 
+def poblar_catalogo():
+    conexion = db()
+    try:
+        with conexion.cursor() as cursor:
+            # Verificar si ya existen productos para no duplicar datos
+            cursor.execute("SELECT COUNT(*) AS total FROM productos;")
+            total = cursor.fetchone()["total"]
+            
+            if total == 0:
+                # 1. Crear un usuario de prueba (feriante)
+                hash_pw = bcrypt.generate_password_hash("12345678").decode("utf-8")
+                cursor.execute("""
+                    INSERT INTO usuarios (nombre, correo, password_hash, tipo_usuario)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (correo) DO NOTHING
+                    RETURNING id;
+                """, ("Feria La Central", "contacto@lacentral.cl", hash_pw, "feriante"))
+                
+                usuario = cursor.fetchone()
+                if not usuario:
+                    cursor.execute("SELECT id FROM usuarios WHERE correo=%s;", ("contacto@lacentral.cl",))
+                    usuario = cursor.fetchone()
+                
+                vendedor_id = usuario["id"]
+
+                # 2. Insertar catálogo variado de productos
+                productos_ejemplo = [
+                    (vendedor_id, "Manzanas Fuji Frescas", "Frutas", "Manzanas crujientes y jugosas recién cosechadas.", 1200, "1 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Naranjas de Cítricos del Valle", "Frutas", "Naranjas dulces ideales para jugo natural.", 1500, "1.5 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Plátanos Maduros", "Frutas", "Plátanos de primera calidad, listos para consumo.", 1100, "1 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Zanahorias Orgánicas", "Verduras", "Zanahorias frescas sin pesticidas.", 800, "1 kg", "Puesto 14 - La Central"),
+                    (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central"),
+                    (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central"),
+                    (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central"),
+                    (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central"),
+                    (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central"),
+                    (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central")
+                ]
+
+                cursor.executemany("""
+                    INSERT INTO productos (vendedor_id, nombre, categoria, descripcion, precio, cantidad, ubicacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                """, productos_ejemplo)
+
+                conexion.commit()
+                print("Catálogo inicial cargado correctamente.")
+    except Exception as e:
+        conexion.rollback()
+        print(f"Error al poblar el catálogo: {e}")
+    finally:
+        conexion.close()
+
+# Ejecutar la carga de datos de prueba
+try:
+    poblar_catalogo()
+except Exception as e:
+    print(f"No se pudo cargar el catálogo: {e}")
+
 
 def consulta(sql, params=(), uno=False):
     conexion = db()
