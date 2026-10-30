@@ -5,6 +5,7 @@ from pymysql.cursors import DictCursor
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, join_room, emit
+from functools import wraps
 
 # Cargar las variables desde el archivo .env
 load_dotenv()
