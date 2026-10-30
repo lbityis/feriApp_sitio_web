@@ -74,7 +74,6 @@ def poblar_catalogo():
     conexion = db()
     try:
         with conexion.cursor() as cursor:
-            # Obtener usuario existente o crear uno de prueba si la tabla está vacía
             cursor.execute("SELECT id FROM usuarios LIMIT 1;")
             usuario = cursor.fetchone()
             
@@ -89,7 +88,6 @@ def poblar_catalogo():
 
             vendedor_id = usuario["id"]
 
-            # Limpiar registros de muestra previos para evitar duplicaciones
             cursor.execute("DELETE FROM productos WHERE ubicacion LIKE '%La Central%';")
 
             productos_ejemplo = [
@@ -118,7 +116,6 @@ def poblar_catalogo():
         conexion.close()
 
 
-# Inicialización de la base de datos al arrancar la aplicación
 try:
     crear_tablas()
     poblar_catalogo()
