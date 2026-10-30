@@ -53,39 +53,36 @@
     <div class="row g-3">
         {% for p in productos %}
         <div class="col-sm-6 col-lg-4">
-            <article class="product-card h-100">
-                <div class="product-art">
+            <article class="product-card h-100 p-3 d-flex flex-column border rounded-3 shadow-sm bg-white">
+                <div class="product-art text-center display-4 py-3 bg-light rounded-3 mb-3">
                     {{ {'Frutas':'🍎','Verduras':'🥬','Tubérculos':'🥔','Otros':'🌿'}.get(p.categoria,'🥕') }}
                 </div>
-                <div class="p-3 d-flex flex-column h-100">
-                    <div class="d-flex justify-content-between gap-2">
-                        <span class="badge category-badge">{{ p.categoria }}</span>
-                        <span class="text-secondary small">#{{ p.id }}</span>
-                    </div>
-                    <h3 class="h5 fw-bold mt-3 mb-1">{{ p.nombre }}</h3>
-                    <p class="text-secondary small flex-grow-1">
-                        {{ p.descripcion or 'Producto local disponible para coordinar directamente con su vendedor.' }}
-                    </p>
-                    
-                    <div class="d-flex align-items-center justify-content-between mt-2 mb-3">
-                        <div class="price fw-bold fs-4">${{ p.precio }}</div>
-                        <div class="small text-secondary">{{ p.cantidad }}</div>
-                    </div>
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">{{ p.categoria }}</span>
+                    <span class="text-muted small">#{{ p.id }}</span>
+                </div>
 
-                    <div class="d-grid mb-2">
-                        {% if usuario_id %}
-                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}?mensaje=Hola,%20me%20interesa%20el%20producto:%20{{ p.nombre|urlencode }}">💬 Pedir alimento</a>
-                        {% else %}
-                            <a class="btn btn-success" href="{{ url_for('iniciar_sesion') }}">💬 Pedir alimento</a>
-                        {% endif %}
-                    </div>
+                <h3 class="h5 fw-bold mb-1 text-dark">{{ p.nombre }}</h3>
+                <p class="text-muted small flex-grow-1 mb-3">
+                    {{ p.descripcion or 'Producto local disponible para pedir directamente.' }}
+                </p>
+                
+                <div class="d-flex align-items-baseline justify-content-between border-top pt-2 mb-3">
+                    <span class="fs-4 fw-bold text-dark">${{ p.precio }}</span>
+                    <span class="text-muted small">{{ p.cantidad or '1 unidad' }}</span>
+                </div>
 
-                    <div class="seller-line mt-2 small text-secondary">
-                        Vende <strong>{{ p.vendedor_nombre }}</strong>
-                        {% if p.ubicacion %}
-                            <span> · {{ p.ubicacion }}</span>
-                        {% endif %}
-                    </div>
+                <div class="d-grid mb-2">
+                    {% if usuario_id %}
+                        <a class="btn btn-success fw-bold py-2" href="{{ url_for('chat', con=p.vendedor_id) }}">💬 Pedir alimento</a>
+                    {% else %}
+                        <a class="btn btn-outline-success fw-bold py-2" href="{{ url_for('iniciar_sesion') }}">💬 Pedir alimento</a>
+                    {% endif %}
+                </div>
+
+                <div class="text-muted small text-center mt-1">
+                    Vende: <strong>{{ p.vendedor_nombre or 'Feria Local' }}</strong>
                 </div>
             </article>
         </div>
@@ -96,13 +93,6 @@
         <div class="display-4">🥕</div>
         <h3 class="h5 mt-3">Todavía no hay publicaciones</h3>
         <p class="text-secondary">Sé la primera persona en compartir alimentos con tu comunidad.</p>
-        {% if usuario_tipo in ['feriante', 'emprendimiento'] %}
-            <a href="{{ url_for('publicar') }}" class="btn btn-success">Publicar producto</a>
-        {% elif not usuario_id %}
-            <a href="{{ url_for('registro') }}" class="btn btn-success">Crear cuenta gratis</a>
-        {% else %}
-            <span class="text-secondary small">Pronto habrá nuevas publicaciones.</span>
-        {% endif %}
     </div>
     {% endif %}
 </section>
