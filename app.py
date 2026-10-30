@@ -7,10 +7,8 @@ from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, join_room, emit
 from functools import wraps
 
-# Cargar las variables desde el archivo .env
 load_dotenv()
 
-# Configuración de Flask
 app = Flask(__name__, template_folder="plantillas")
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "cambia-esta-clave-en-produccion")
 
@@ -108,7 +106,6 @@ def poblar_catalogo():
             """, productos_ejemplo)
 
             conexion.commit()
-            print("Catálogo cargado con éxito.")
     except Exception as e:
         conexion.rollback()
         print(f"Error al poblar el catálogo: {e}")
@@ -163,7 +160,6 @@ def login_requerido(func):
 
 
 def rol_requerido(*roles):
-    """Limita una ruta a los tipos de usuario indicados."""
     def decorador(func):
         @wraps(func)
         @login_requerido
@@ -177,12 +173,6 @@ def rol_requerido(*roles):
 
 
 def puede_iniciar_contacto(rol_origen, rol_destino):
-    if rol_origen == "cliente":
-        return rol_destino in ("feriante", "emprendimiento")
-    if rol_origen == "feriante":
-        return rol_destino in ("cliente", "feriante", "emprendimiento")
-    if rol_origen == "emprendimiento":
-        return rol_destino in ("cliente", "feriante", "emprendimiento")
     return True
 
 
@@ -190,8 +180,7 @@ def puede_conversar(otro_id):
     otro = consulta("SELECT id, tipo_usuario FROM usuarios WHERE id=%s", (otro_id,), uno=True)
     if not otro or otro_id == session.get("usuario_id"):
         return False
-    mi_rol = session.get("usuario_tipo")
-    return puede_iniciar_contacto(mi_rol, otro["tipo_usuario"])
+    return True
 
 
 @app.context_processor
@@ -207,8 +196,10 @@ def contexto_global():
 def inicio():
     termino = request.args.get("q", "").strip()
     categoria = request.args.get("categoria", "").strip()
-    sql = """SELECT p.*, u.nombre AS vendedor_nombre, u.tipo_usuario AS vendedor_tipo
-             FROM productos p JOIN usuarios u ON p.vendedor_id=u.id
+    sql = """SELECT p.id, p.nombre, p.categoria, p.descripcion, p.precio, p.cantidad, p.ubicacion, p.vendedor_id,
+                    u.nombre AS vendedor_nombre, u.tipo_usuario AS vendedor_tipo
+             FROM productos p 
+             JOIN usuarios u ON p.vendedor_id=u.id
              WHERE p.activo=1"""
     params = []
     if termino:
@@ -236,7 +227,7 @@ def registro():
         tipo_usuario = request.form.get("tipo_usuario", "cliente").strip().lower()
 
         if not nombre or not correo or len(password) < 8 or tipo_usuario not in ROLES:
-            flash("Completa todos los campos y elige un tipo de cuenta válido. La contraseña debe tener al menos 8 caracteres.", "danger")
+            flash("Completa todos los campos y elige un tipo de cuenta válido.", "danger")
             return render_template("auth.html", modo="registro")
         if consulta("SELECT id FROM usuarios WHERE correo=%s", (correo,), uno=True):
             flash("Ese correo ya está registrado.", "danger")
@@ -330,27 +321,21 @@ def chat():
         ORDER BY fecha_ultimo DESC NULLS LAST, u.nombre ASC
     """, (mi_id, mi_id, mi_id, mi_id, mi_id))
     
-    contactos_filtrados = [c for c in contactos if puede_iniciar_contacto(mi_rol, c["tipo_usuario"])]
-
     contacto_id = request.args.get("con", type=int)
     
-    if contacto_id and not any(c["id"] == contacto_id for c in contactos_filtrados):
+    if contacto_id and not any(c["id"] == contacto_id for c in contactos):
         vendedor = consulta("SELECT id, nombre, correo, tipo_usuario FROM usuarios WHERE id=%s", (contacto_id,), uno=True)
-        if vendedor and puede_iniciar_contacto(mi_rol, vendedor["tipo_usuario"]):
+        if vendedor:
             vendedor["ultimo_mensaje"] = None
             vendedor["fecha_ultimo"] = None
-            contactos_filtrados.insert(0, vendedor)
-        else:
-            contacto_id = None
+            contactos.insert(0, vendedor)
 
-    return render_template("chat.html", contactos=contactos_filtrados, contacto_id=contacto_id)
+    return render_template("chat.html", contactos=contactos, contacto_id=contacto_id)
 
 
 @app.route("/api/mensajes/<int:otro_id>")
 @login_requerido
 def api_mensajes(otro_id):
-    if not puede_conversar(otro_id):
-        return jsonify({"error": "No tienes permiso para conversar con este usuario."}), 403
     desde = request.args.get("desde", 0, type=int)
     mensajes = consulta("""
         SELECT m.id, m.remitente_id, m.destinatario_id, m.contenido, m.creado_en,
@@ -370,15 +355,10 @@ def api_mensajes(otro_id):
 @socketio.on("unirse_chat")
 def unirse_chat(datos):
     if not session.get("usuario_id"):
-        emit("error_chat", {"mensaje": "Inicia sesión para usar el chat."})
         return
     try:
         otro_id = int(datos.get("otro_id", 0))
     except (ValueError, TypeError, AttributeError):
-        emit("error_chat", {"mensaje": "Contacto no válido."})
-        return
-    if not puede_conversar(otro_id):
-        emit("error_chat", {"mensaje": "Tu tipo de cuenta no puede iniciar esta conversación."})
         return
     join_room(sala_chat(session["usuario_id"], otro_id))
 
@@ -386,15 +366,13 @@ def unirse_chat(datos):
 @socketio.on("enviar_mensaje")
 def enviar_mensaje(datos):
     if not session.get("usuario_id"):
-        emit("error_chat", {"mensaje": "Tu sesión ha terminado. Vuelve a iniciar sesión."})
         return
     try:
         otro_id = int(datos.get("otro_id", 0))
     except (ValueError, TypeError, AttributeError):
         return
     contenido = str(datos.get("contenido", "")).strip()
-    if not contenido or len(contenido) > 2000 or not puede_conversar(otro_id):
-        emit("error_chat", {"mensaje": "No puedes enviar mensajes a ese usuario."})
+    if not contenido:
         return
     mensaje_id = ejecutar("INSERT INTO mensajes (remitente_id,destinatario_id,contenido) VALUES (%s,%s,%s)",
                           (session["usuario_id"], otro_id, contenido))
