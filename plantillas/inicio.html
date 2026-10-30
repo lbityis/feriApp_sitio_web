@@ -74,7 +74,7 @@
                         {% if usuario_id and usuario_id == p.vendedor_id %}
                             <span class="small text-secondary">Tu publicación</span>
                         {% elif usuario_id %}
-                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Pedir alimento</a>
+                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}?mensaje=Hola,%20me%20interesa%20el%20producto:%20{{ p.nombre|urlencode }}">Pedir alimento</a>
                         {% else %}
                             <a class="btn btn-outline-success" href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>
                         {% endif %}
