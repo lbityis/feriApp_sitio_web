@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
-import pymysql
-from pymysql.cursors import DictCursor
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_bcrypt import Bcrypt
 from flask_socketio import SocketIO, join_room, emit
@@ -21,20 +21,17 @@ ROLES = ("cliente", "feriante", "emprendimiento")
 
 
 def db():
-    return pymysql.connect(
-        host=os.getenv("DB_HOST", "localhost"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", "1234"),
-        database=os.getenv("DB_NAME", "feriapp"),
-        charset="utf8mb4",
-        cursorclass=DictCursor,
-        autocommit=True
-    )
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL no está configurada en las variables de entorno.")
+    return psycopg2.connect(database_url, cursor_factory=RealDictCursor)
+
 
 def consulta(sql, params=(), uno=False):
     conexion = db()
     try:
         with conexion.cursor() as cursor:
+            # PostgreSQL utiliza %s como marcador de parámetros al igual que PyMySQL
             cursor.execute(sql, params)
             return cursor.fetchone() if uno else cursor.fetchall()
     finally:
@@ -45,8 +42,16 @@ def ejecutar(sql, params=()):
     conexion = db()
     try:
         with conexion.cursor() as cursor:
+            # RETURNING id permite obtener el ID insertado en PostgreSQL de forma directa
+            if "RETURNING" not in sql.upper():
+                sql = sql.rstrip(";") + " RETURNING id;"
             cursor.execute(sql, params)
-            return cursor.lastrowid
+            row = cursor.fetchone()
+            conexion.commit()
+            return row["id"] if row else None
+    except Exception:
+        conexion.rollback()
+        raise
     finally:
         conexion.close()
 
@@ -124,7 +129,7 @@ def inicio():
              WHERE p.activo=1"""
     params = []
     if termino:
-        sql += " AND (p.nombre LIKE %s OR p.descripcion LIKE %s OR u.nombre LIKE %s)"
+        sql += " AND (p.nombre ILIKE %s OR p.descripcion ILIKE %s OR u.nombre ILIKE %s)"
         like = f"%{termino}%"
         params += [like, like, like]
     if categoria:
@@ -160,7 +165,6 @@ def registro():
             (nombre, correo, hash_password, tipo_usuario)
         )
 
-        # Registrar también inicia la sesión: no es necesario volver a iniciar sesión.
         session.clear()
         session["usuario_id"] = nuevo_id
         session["usuario_nombre"] = nombre
@@ -239,9 +243,9 @@ def chat():
                    OR (m.remitente_id=%s AND m.destinatario_id=u.id)
                 ORDER BY m.creado_en DESC, m.id DESC LIMIT 1) AS fecha_ultimo
         FROM usuarios u WHERE u.id<>%s
-        ORDER BY fecha_ultimo DESC, u.nombre ASC
+        ORDER BY fecha_ultimo DESC NULLS LAST, u.nombre ASC
     """, (mi_id, mi_id, mi_id, mi_id, mi_id))
-    # Solo muestra contactos con los que esta cuenta puede conversar.
+    
     contactos = [c for c in contactos if puede_iniciar_contacto(mi_rol, c["tipo_usuario"])
                  or (mi_rol == "cliente" and c["tipo_usuario"] == "emprendimiento"
                      and consulta("SELECT id FROM mensajes WHERE remitente_id=%s AND destinatario_id=%s LIMIT 1",
