@@ -329,3 +329,51 @@ def error_servidor(error):
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+
+def crear_tablas():
+    conexion = db()
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                correo VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                tipo_usuario VARCHAR(50) DEFAULT 'cliente',
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS productos (
+                id SERIAL PRIMARY KEY,
+                vendedor_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                nombre VARCHAR(150) NOT NULL,
+                categoria VARCHAR(50) NOT NULL,
+                descripcion TEXT,
+                precio INT NOT NULL,
+                cantidad VARCHAR(50),
+                ubicacion VARCHAR(150),
+                activo INT DEFAULT 1,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS mensajes (
+                id SERIAL PRIMARY KEY,
+                remitente_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                destinatario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+                contenido TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            conexion.commit()
+    except Exception as e:
+        conexion.rollback()
+        print(f"Error al crear tablas: {e}")
+    finally:
+        conexion.close()
+
+# Ejecutar la creación de tablas al cargar la app
+try:
+    crear_tablas()
+except Exception as e:
+    print(f"No se pudieron inicializar las tablas: {e}")
