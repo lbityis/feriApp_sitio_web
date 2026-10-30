@@ -15,7 +15,7 @@ MarkupSafe==3.0.3
 packaging==26.3
 pipenv==2026.8.0
 platformdirs==4.11.12
-PyMySQL==1.2.3
+psycopg2-binary
 python-discovery==1.6.1
 python-engineio==4.15.1
 python-socketio==5.17.0
