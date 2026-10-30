@@ -74,7 +74,6 @@ def poblar_catalogo():
     conexion = db()
     try:
         with conexion.cursor() as cursor:
-            # Obtener usuario existente o crear uno de prueba si la tabla está vacía
             cursor.execute("SELECT id FROM usuarios LIMIT 1;")
             usuario = cursor.fetchone()
             
@@ -89,7 +88,6 @@ def poblar_catalogo():
 
             vendedor_id = usuario["id"]
 
-            # Limpiar registros de muestra previos para evitar duplicaciones
             cursor.execute("DELETE FROM productos WHERE ubicacion LIKE '%La Central%';")
 
             productos_ejemplo = [
@@ -100,7 +98,6 @@ def poblar_catalogo():
                 (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central", 1),
                 (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central", 1),
                 (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central", 1),
-                (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central", 1),
                 (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central", 1),
                 (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central", 1)
             ]
@@ -119,7 +116,6 @@ def poblar_catalogo():
         conexion.close()
 
 
-# Inicialización de la base de datos al arrancar la aplicación
 try:
     crear_tablas()
     poblar_catalogo()
@@ -182,12 +178,12 @@ def rol_requerido(*roles):
 
 def puede_iniciar_contacto(rol_origen, rol_destino):
     if rol_origen == "cliente":
-        return rol_destino == "feriante"
+        return rol_destino in ("feriante", "emprendimiento")
     if rol_origen == "feriante":
-        return rol_destino in ("cliente", "emprendimiento")
+        return rol_destino in ("cliente", "feriante", "emprendimiento")
     if rol_origen == "emprendimiento":
-        return rol_destino in ("cliente", "feriante")
-    return False
+        return rol_destino in ("cliente", "feriante", "emprendimiento")
+    return True
 
 
 def puede_conversar(otro_id):
@@ -195,14 +191,7 @@ def puede_conversar(otro_id):
     if not otro or otro_id == session.get("usuario_id"):
         return False
     mi_rol = session.get("usuario_tipo")
-    if puede_iniciar_contacto(mi_rol, otro["tipo_usuario"]):
-        return True
-    if mi_rol == "cliente" and otro["tipo_usuario"] == "emprendimiento":
-        return bool(consulta("""
-            SELECT id FROM mensajes
-            WHERE remitente_id=%s AND destinatario_id=%s LIMIT 1
-        """, (otro_id, session["usuario_id"],), uno=True))
-    return False
+    return puede_iniciar_contacto(mi_rol, otro["tipo_usuario"])
 
 
 @app.context_processor
@@ -326,6 +315,7 @@ def publicar():
 def chat():
     mi_id = session["usuario_id"]
     mi_rol = session.get("usuario_tipo", "cliente")
+    
     contactos = consulta("""
         SELECT u.id, u.nombre, u.correo, u.tipo_usuario,
                (SELECT m.contenido FROM mensajes m
@@ -340,14 +330,20 @@ def chat():
         ORDER BY fecha_ultimo DESC NULLS LAST, u.nombre ASC
     """, (mi_id, mi_id, mi_id, mi_id, mi_id))
     
-    contactos = [c for c in contactos if puede_iniciar_contacto(mi_rol, c["tipo_usuario"])
-                 or (mi_rol == "cliente" and c["tipo_usuario"] == "emprendimiento"
-                     and consulta("SELECT id FROM mensajes WHERE remitente_id=%s AND destinatario_id=%s LIMIT 1",
-                                  (c["id"], mi_id), uno=True))]
+    contactos_filtrados = [c for c in contactos if puede_iniciar_contacto(mi_rol, c["tipo_usuario"])]
+
     contacto_id = request.args.get("con", type=int)
-    if contacto_id and not any(c["id"] == contacto_id for c in contactos):
-        contacto_id = None
-    return render_template("chat.html", contactos=contactos, contacto_id=contacto_id)
+    
+    if contacto_id and not any(c["id"] == contacto_id for c in contactos_filtrados):
+        vendedor = consulta("SELECT id, nombre, correo, tipo_usuario FROM usuarios WHERE id=%s", (contacto_id,), uno=True)
+        if vendedor and puede_iniciar_contacto(mi_rol, vendedor["tipo_usuario"]):
+            vendedor["ultimo_mensaje"] = None
+            vendedor["fecha_ultimo"] = None
+            contactos_filtrados.insert(0, vendedor)
+        else:
+            contacto_id = None
+
+    return render_template("chat.html", contactos=contactos_filtrados, contacto_id=contacto_id)
 
 
 @app.route("/api/mensajes/<int:otro_id>")
@@ -423,47 +419,3 @@ def error_servidor(error):
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
-
-@app.route("/chat")
-@login_requerido
-def chat():
-    mi_id = session["usuario_id"]
-    mi_rol = session.get("usuario_tipo", "cliente")
-    
-    # Obtiene todos los usuarios con los que es válido conversar según el rol
-    contactos = consulta("""
-        SELECT u.id, u.nombre, u.correo, u.tipo_usuario,
-               (SELECT m.contenido FROM mensajes m
-                WHERE (m.remitente_id=u.id AND m.destinatario_id=%s)
-                   OR (m.remitente_id=%s AND m.destinatario_id=u.id)
-                ORDER BY m.creado_en DESC, m.id DESC LIMIT 1) AS ultimo_mensaje,
-               (SELECT m.creado_en FROM mensajes m
-                WHERE (m.remitente_id=u.id AND m.destinatario_id=%s)
-                   OR (m.remitente_id=%s AND m.destinatario_id=u.id)
-                ORDER BY m.creado_en DESC, m.id DESC LIMIT 1) AS fecha_ultimo
-        FROM usuarios u WHERE u.id<>%s
-        ORDER BY fecha_ultimo DESC NULLS LAST, u.nombre ASC
-    """, (mi_id, mi_id, mi_id, mi_id, mi_id))
-    
-    # Filtrar según reglas de rol
-    contactos_filtrados = []
-    for c in contactos:
-        if puede_iniciar_contacto(mi_rol, c["tipo_usuario"]) or (
-            mi_rol == "cliente" and c["tipo_usuario"] == "emprendimiento"
-            and consulta("SELECT id FROM mensajes WHERE remitente_id=%s AND destinatario_id=%s LIMIT 1", (c["id"], mi_id), uno=True)
-        ):
-            contactos_filtrados.append(c)
-
-    contacto_id = request.args.get("con", type=int)
-    
-    # Si se selecciona un vendedor desde un producto y no está en la lista previa, incluirlo
-    if contacto_id and not any(c["id"] == contacto_id for c in contactos_filtrados):
-        vendedor = consulta("SELECT id, nombre, correo, tipo_usuario FROM usuarios WHERE id=%s", (contacto_id,), uno=True)
-        if vendedor and puede_iniciar_contacto(mi_rol, vendedor["tipo_usuario"]):
-            vendedor["ultimo_mensaje"] = None
-            vendedor["fecha_ultimo"] = None
-            contactos_filtrados.insert(0, vendedor)
-        else:
-            contacto_id = None
-
-    return render_template("chat.html", contactos=contactos_filtrados, contacto_id=contacto_id)
