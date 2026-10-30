@@ -435,3 +435,39 @@ try:
     crear_tablas()
 except Exception as e:
     print(f"No se pudieron inicializar las tablas: {e}")
+def poblar_catalogo():
+    conexion = db()
+    try:
+        with conexion.cursor() as cursor:
+            # Obtener o usar la cuenta actual para asociar los productos
+            cursor.execute("SELECT id FROM usuarios LIMIT 1;")
+            usuario = cursor.fetchone()
+            
+            if usuario:
+                vendedor_id = usuario["id"]
+
+                productos_ejemplo = [
+                    (vendedor_id, "Manzanas Fuji Frescas", "Frutas", "Manzanas crujientes y jugosas recién cosechadas.", 1200, "1 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Naranjas del Valle", "Frutas", "Naranjas dulces ideales para jugo natural.", 1500, "1.5 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Plátanos Maduros", "Frutas", "Plátanos de primera calidad, listos para consumo.", 1100, "1 kg", "Puesto 12 - La Central"),
+                    (vendedor_id, "Zanahorias Orgánicas", "Verduras", "Zanahorias frescas sin pesticidas.", 800, "1 kg", "Puesto 14 - La Central"),
+                    (vendedor_id, "Lechuga Costina", "Verduras", "Lechuga fresca y crujiente para ensaladas.", 700, "1 unidad", "Puesto 14 - La Central"),
+                    (vendedor_id, "Tomates Limachinos", "Verduras", "Tomates de gran sabor y aroma tradicional.", 1800, "1 kg", "Puesto 14 - La Central"),
+                    (vendedor_id, "Miel Multifloral Artesanal", "Abarrotes", "Miel 100% pura recolectada de apicultores locales.", 4500, "500 g", "Puesto 20 - La Central"),
+                    (vendedor_id, "Pan Masa Madre Tradicional", "Panadería", "Pan artesanal elaborado con fermentación natural.", 2500, "1 unidad", "Puesto 05 - La Central"),
+                    (vendedor_id, "Queso Mantecoso Artesanal", "Lácteos", "Queso de campo cremoso de excelente calidad.", 3800, "500 g", "Puesto 08 - La Central"),
+                    (vendedor_id, "Huevos de Gallina Libre", "Lácteos", "Bandeja de huevos frescos de campo.", 3200, "12 unidades", "Puesto 08 - La Central")
+                ]
+
+                cursor.executemany("""
+                    INSERT INTO productos (vendedor_id, nombre, categoria, descripcion, precio, cantidad, ubicacion)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s);
+                """, productos_ejemplo)
+
+                conexion.commit()
+                print("Catálogo cargado con éxito.")
+    except Exception as e:
+        conexion.rollback()
+        print(f"Error al poblar el catálogo: {e}")
+    finally:
+        conexion.close()
