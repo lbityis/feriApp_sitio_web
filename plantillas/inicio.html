@@ -66,17 +66,16 @@
                     <p class="text-secondary small flex-grow-1">
                         {{ p.descripcion or 'Producto local disponible para coordinar directamente con su vendedor.' }}
                     </p>
-                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center justify-content-between mt-3">
                         <div>
                             <div class="price">${{ "{:,}".format(p.precio).replace(",", ".") }}</div>
                             <div class="small text-secondary">{{ p.cantidad }}</div>
                         </div>
-                        {% if usuario_id and usuario_id == p.vendedor_id %}
-                            <span class="small text-secondary">Tu publicación</span>
-                        {% elif usuario_id %}
-                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}?mensaje=Hola,%20me%20interesa%20el%20producto:%20{{ p.nombre|urlencode }}">Pedir alimento</a>
+                        
+                        {% if usuario_id %}
+                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}?mensaje=Hola,%20me%20interesa%20el%20producto:%20{{ p.nombre|urlencode }}">💬 Pedir alimento</a>
                         {% else %}
-                            <a class="btn btn-outline-success" href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>
+                            <a class="btn btn-success" href="{{ url_for('iniciar_sesion') }}">💬 Pedir alimento</a>
                         {% endif %}
                     </div>
                     <div class="seller-line mt-3">
