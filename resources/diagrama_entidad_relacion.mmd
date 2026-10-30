@@ -1,0 +1,30 @@
+erDiagram
+    USUARIOS ||--o{ PRODUCTOS : publica
+    USUARIOS ||--o{ MENSAJES : envia
+    USUARIOS ||--o{ MENSAJES : recibe
+    USUARIOS {
+        int id PK
+        varchar nombre
+        varchar correo UK
+        varchar password_hash
+        timestamp creado_en
+    }
+    PRODUCTOS {
+        int id PK
+        int vendedor_id FK
+        varchar nombre
+        varchar categoria
+        text descripcion
+        int precio
+        varchar cantidad
+        varchar ubicacion
+        boolean activo
+        timestamp creado_en
+    }
+    MENSAJES {
+        bigint id PK
+        int remitente_id FK
+        int destinatario_id FK
+        varchar contenido
+        timestamp creado_en
+    }

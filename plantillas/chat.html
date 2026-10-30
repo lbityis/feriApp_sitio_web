@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block titulo %}Mensajes{% endblock %}
+{% block contenido %}
+<div class="chat-heading mb-3"><div><span class="eyebrow">CONVERSACIONES</span><h1 class="h2 fw-bold">Mensajes</h1><p class="text-secondary mb-0">Habla directamente con otros miembros de FeriApp.</p></div></div>
+<div class="chat-shell">
+ <aside class="contacts"><div class="p-3 border-bottom"><strong>Personas</strong><div class="small text-secondary">Miembros de la comunidad</div></div>
+  <div class="contact-list">{% for c in contactos %}
+  <a class="contact-item {% if contacto_id==c.id %}active{% endif %}" href="{{ url_for('chat', con=c.id) }}"><div class="avatar">{{ c.nombre[:1]|upper }}</div><div class="contact-info"><strong>{{ c.nombre }}</strong><small>{{ c.ultimo_mensaje or c.correo }}</small></div></a>
+  {% else %}<div class="p-4 text-secondary small">Todavía no hay otros usuarios. Comparte FeriApp para empezar a conversar.</div>{% endfor %}</div>
+ </aside>
+ <section class="conversation">
+ {% if contacto_id %}
+  <div class="conversation-head"><div class="avatar">{{ (contactos|selectattr('id','equalto',contacto_id)|map(attribute='nombre')|first or 'U')[:1]|upper }}</div><div><strong>{{ contactos|selectattr('id','equalto',contacto_id)|map(attribute='nombre')|first or 'Conversación' }}</strong><div class="small text-secondary"><span class="online-dot"></span> Chat en tiempo real</div></div></div>
+  <div id="mensajes" class="messages" aria-live="polite"><div class="text-center text-secondary small">Cargando mensajes…</div></div>
+  <form id="form-chat" class="composer"><input id="mensaje-input" class="form-control" maxlength="2000" autocomplete="off" placeholder="Escribe un mensaje…" aria-label="Mensaje" required><button class="btn btn-success" type="submit">Enviar ↑</button></form>
+  <div id="chat-error" class="small text-danger px-3 pb-2"></div>
+ {% else %}
+  <div class="chat-welcome"><div class="display-3">💬</div><h2 class="h4 fw-bold mt-3">Tu comunidad, más cerca</h2><p class="text-secondary">Selecciona una persona a la izquierda para abrir una conversación. Los mensajes quedan guardados en la base de datos.</p></div>
+ {% endif %}
+ </section>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if contacto_id %}
+<script>
+(() => {
+ const otroId = {{ contacto_id|tojson }};
+ const miId = {{ usuario_id|tojson }};
+ const lista = document.getElementById('mensajes');
+ const formulario = document.getElementById('form-chat');
+ const entrada = document.getElementById('mensaje-input');
+ const error = document.getElementById('chat-error');
+ let ultimoId = 0;
+ const socket = io();
+ function dibujar(m) {
+   if (document.querySelector(`[data-mensaje-id="${m.id}"]`)) return;
+   const vacio = lista.querySelector('.text-center');
+   if (vacio) vacio.remove();
+   const burbuja = document.createElement('div');
+   burbuja.className = 'message-row ' + (Number(m.remitente_id) === Number(miId) ? 'mine' : 'theirs');
+   burbuja.dataset.mensajeId = m.id;
+   const contenido = document.createElement('div');
+   contenido.className = 'message-bubble';
+   const texto = document.createElement('div');
+   texto.textContent = m.contenido;
+   const hora = document.createElement('small');
+   hora.textContent = m.creado_en || '';
+   contenido.append(texto, hora);
+   burbuja.appendChild(contenido);
+   lista.appendChild(burbuja);
+   ultimoId = Math.max(ultimoId, Number(m.id));
+   lista.scrollTop = lista.scrollHeight;
+ }
+ async function cargarInicial() {
+   try {
+    const r = await fetch(`/api/mensajes/${otroId}`);
+    if (!r.ok) throw new Error('No se pudieron cargar los mensajes.');
+    const datos = await r.json();
+    lista.innerHTML = '';
+    if (!datos.length) { const p=document.createElement('p'); p.className='text-center text-secondary small mt-4'; p.textContent='Aún no hay mensajes. ¡Saluda para comenzar!'; lista.appendChild(p); }
+    datos.forEach(dibujar);
+   } catch(e) { error.textContent = e.message; }
+ }
+ socket.on('connect', () => socket.emit('unirse_chat', {otro_id: otroId}));
+ socket.on('nuevo_mensaje', m => { if ((Number(m.remitente_id)===Number(miId) && Number(m.destinatario_id)===Number(otroId)) || (Number(m.remitente_id)===Number(otroId) && Number(m.destinatario_id)===Number(miId))) dibujar(m); });
+ socket.on('error_chat', d => error.textContent = d.mensaje || 'No se pudo conectar al chat.');
+ formulario.addEventListener('submit', e => {
+   e.preventDefault();
+   const contenido = entrada.value.trim();
+   if (!contenido) return;
+   socket.emit('enviar_mensaje', {otro_id: otroId, contenido});
+   entrada.value = '';
+   entrada.focus();
+ });
+ cargarInicial();
+ // Respaldo para recuperar mensajes si el navegador pierde un evento en tiempo real.
+ setInterval(async () => {
+   try {
+    const r = await fetch(`/api/mensajes/${otroId}?desde=${ultimoId}`);
+    if (r.ok) (await r.json()).forEach(dibujar);
+   } catch (_) {}
+ }, 2500);
+})();
+</script>
+{% endif %}
+{% endblock %}

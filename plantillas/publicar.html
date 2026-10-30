@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}Publicar producto{% endblock %}
+{% block contenido %}
+<div class="form-page"><a href="{{ url_for('inicio') }}" class="text-success text-decoration-none">← Volver al catálogo</a><h1 class="h2 fw-bold mt-3">{{ 'Publica tus productos' if usuario_tipo == 'emprendimiento' else 'Publica tus alimentos' }}</h1><p class="text-secondary">Comparte lo que tienes disponible con tu comunidad.</p>
+<form method="post" class="panel-form mt-4">
+ <label class="form-label">Nombre del producto</label><input class="form-control mb-3" name="nombre" maxlength="140" required placeholder="Ej. Manzanas Fuji">
+ <label class="form-label">Categoría</label><select class="form-select mb-3" name="categoria" required><option value="">Selecciona…</option><option>Frutas</option><option>Verduras</option><option>Tubérculos</option><option>Otros</option></select>
+ <label class="form-label">Descripción</label><textarea class="form-control mb-3" name="descripcion" rows="3" maxlength="2000" placeholder="Origen, características, detalles del producto…"></textarea>
+ <div class="row"><div class="col-md-6"><label class="form-label">Precio en pesos chilenos (CLP)</label><input class="form-control mb-3" name="precio" type="number" min="1" step="1" required></div><div class="col-md-6"><label class="form-label">Cantidad disponible</label><input class="form-control mb-3" name="cantidad" required maxlength="80" placeholder="Ej. Bolsa de 1 kg"></div></div>
+ <label class="form-label">Sector o comuna (opcional)</label><input class="form-control mb-4" name="ubicacion" maxlength="160" placeholder="Ej. Maipú, Santiago">
+ <button class="btn btn-success btn-lg">{{ 'Publicar producto' if usuario_tipo == 'emprendimiento' else 'Publicar alimento' }}</button>
+</form></div>
+{% endblock %}

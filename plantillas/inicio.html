@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block titulo %}Alimentos locales{% endblock %}
+{% block contenido %}
+<section class="hero rounded-4 p-4 p-lg-5 mb-4">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <span class="eyebrow">DEL PRODUCTOR A TU MESA</span>
+            <h1 class="display-5 fw-bold mt-2">Alimentos frescos,<br><span class="text-green">conexiones reales.</span>
+            </h1>
+            <p class="lead text-secondary">Descubre productos locales, conoce a quienes los cultivan y conversa
+                directamente con ellos.</p>
+            <a href="#catalogo" class="btn btn-success btn-lg">Explorar catálogo <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="col-lg-4 d-none d-lg-block text-center">
+            <div class="hero-emoji">🥬🍎🥕</div>
+            <p class="text-secondary small">Fresco · Local · Cercano</p>
+        </div>
+    </div>
+</section>
+
+<section id="catalogo">
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+        <div>
+            <span class="eyebrow">CATÁLOGO LOCAL</span>
+            <h2 class="h3 fw-bold mb-1">Encuentra tu próximo favorito</h2>
+            <p class="text-secondary mb-0">Consulta la oferta de la comunidad.</p>
+        </div>
+        {% if usuario_tipo in ['feriante', 'emprendimiento'] %}
+            <a class="btn btn-outline-success" href="{{ url_for('publicar') }}">＋ Publicar producto</a>
+        {% elif not usuario_id %}
+            <a class="btn btn-outline-success" href="{{ url_for('registro') }}">Únete a FeriApp</a>
+        {% endif %}
+    </div>
+
+    <form class="search-panel row g-2 mb-4" method="get">
+        <div class="col-md-6">
+            <input class="form-control form-control-lg" name="q" value="{{ termino }}" placeholder="Busca frutas, verduras o vendedores…">
+        </div>
+        <div class="col-md-4">
+            <select class="form-select form-select-lg" name="categoria">
+                <option value="">Todas las categorías</option>
+                {% for c in categorias %}
+                    <option value="{{ c.categoria }}" {% if categoria == c.categoria %}selected{% endif %}>{{ c.categoria }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button class="btn btn-dark btn-lg">Buscar</button>
+        </div>
+    </form>
+
+    {% if productos %}
+    <div class="row g-3">
+        {% for p in productos %}
+        <div class="col-sm-6 col-lg-4">
+            <article class="product-card h-100">
+                <div class="product-art">
+                    {{ {'Frutas':'🍎','Verduras':'🥬','Tubérculos':'🥔','Otros':'🌿'}.get(p.categoria,'🥕') }}
+                </div>
+                <div class="p-3 d-flex flex-column h-100">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="badge category-badge">{{ p.categoria }}</span>
+                        <span class="text-secondary small">#{{ p.id }}</span>
+                    </div>
+                    <h3 class="h5 fw-bold mt-3 mb-1">{{ p.nombre }}</h3>
+                    <p class="text-secondary small flex-grow-1">
+                        {{ p.descripcion or 'Producto local disponible para coordinar directamente con su vendedor.' }}
+                    </p>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="price">${{ "{:,}".format(p.precio).replace(",", ".") }}</div>
+                            <div class="small text-secondary">{{ p.cantidad }}</div>
+                        </div>
+                        {% if usuario_id and usuario_id == p.vendedor_id %}
+                            <span class="small text-secondary">Tu publicación</span>
+                        {% elif usuario_tipo == 'cliente' and p.vendedor_tipo == 'feriante' %}
+                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Pedir alimento</a>
+                        {% elif usuario_tipo == 'emprendimiento' and p.vendedor_tipo in ['cliente', 'feriante'] %}
+                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Contactar</a>
+                        {% elif usuario_tipo == 'feriante' and p.vendedor_tipo in ['cliente', 'emprendimiento'] %}
+                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Contactar</a>
+                        {% elif not usuario_id %}
+                            <a class="btn btn-outline-success" href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>
+                        {% elif usuario_tipo == 'cliente' and p.vendedor_tipo == 'emprendimiento' %}
+                            <span class="small text-secondary">Venta del emprendimiento</span>
+                        {% else %}
+                            <span class="small text-secondary">No disponible para tu tipo de cuenta</span>
+                        {% endif %}
+                    </div>
+                    <div class="seller-line mt-3">
+                        Vende <strong>{{ p.vendedor_nombre }}</strong>
+                        {% if p.ubicacion %}
+                            <span> · {{ p.ubicacion }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state text-center p-5">
+        <div class="display-4">🥕</div>
+        <h3 class="h5 mt-3">Todavía no hay publicaciones</h3>
+        <p class="text-secondary">Sé la primera persona en compartir alimentos con tu comunidad.</p>
+        {% if usuario_tipo in ['feriante', 'emprendimiento'] %}
+            <a href="{{ url_for('publicar') }}" class="btn btn-success">Publicar producto</a>
+        {% elif not usuario_id %}
+            <a href="{{ url_for('registro') }}" class="btn btn-success">Crear cuenta gratis</a>
+        {% else %}
+            <span class="text-secondary small">Pronto habrá nuevas publicaciones.</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

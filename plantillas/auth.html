@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Crear cuenta' if modo=='registro' else 'Iniciar sesión' }}{% endblock %}
+{% block contenido %}
+<div class="auth-wrap"><section class="auth-card">
+ <div class="brand-mark mb-3">F</div><span class="eyebrow">BIENVENIDO A FERIAPP</span>
+ <h1 class="h3 fw-bold mt-2">{{ 'Crea tu cuenta' if modo=='registro' else 'Qué bueno verte de nuevo' }}</h1>
+ <p class="text-secondary">{{ 'Únete a la comunidad de alimentos locales.' if modo=='registro' else 'Ingresa para contactar a vendedores y gestionar tus publicaciones.' }}</p>
+ <form method="post" class="mt-4">
+ {% if modo=='registro' %}<label class="form-label" for="nombre">Nombre</label><input class="form-control mb-3" id="nombre" name="nombre" required maxlength="100" autocomplete="name">{% endif %}
+ <label class="form-label" for="correo">Correo electrónico</label><input class="form-control mb-3" id="correo" name="correo" type="email" required autocomplete="email">
+ <label class="form-label" for="password">Contraseña</label><input class="form-control mb-2" id="password" name="password" type="password" minlength="8" required autocomplete="{{ 'new-password' if modo=='registro' else 'current-password' }}">
+ {% if modo=='registro' %}
+ <label class="form-label" for="tipo_usuario">¿Qué tipo de cuenta necesitas?</label>
+ <select class="form-select mb-3" id="tipo_usuario" name="tipo_usuario" required>
+  <option value="cliente" selected>Cliente — quiero pedir alimentos</option>
+  <option value="feriante">Feriante — quiero publicar alimentos</option>
+  <option value="emprendimiento">Emprendimiento — quiero vender mis productos</option>
+ </select>
+ <div class="form-text mb-3">Usa al menos 8 caracteres.</div>
+ {% endif %}
+ <button class="btn btn-success btn-lg w-100 mt-3">{{ 'Crear cuenta' if modo=='registro' else 'Iniciar sesión' }}</button>
+ </form>
+ <p class="text-secondary small text-center mt-4 mb-0">{% if modo=='registro' %}¿Ya tienes cuenta? <a href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>{% else %}¿Eres nuevo? <a href="{{ url_for('registro') }}">Crea una cuenta</a>{% endif %}</p>
+ <a href="{{ url_for('inicio') }}" class="d-block text-center small mt-3 text-secondary">Volver al catálogo</a>
+</section></div>
+{% endblock %}
