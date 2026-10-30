@@ -423,3 +423,47 @@ def error_servidor(error):
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, allow_unsafe_werkzeug=True)
+
+@app.route("/chat")
+@login_requerido
+def chat():
+    mi_id = session["usuario_id"]
+    mi_rol = session.get("usuario_tipo", "cliente")
+    
+    # Obtiene todos los usuarios con los que es válido conversar según el rol
+    contactos = consulta("""
+        SELECT u.id, u.nombre, u.correo, u.tipo_usuario,
+               (SELECT m.contenido FROM mensajes m
+                WHERE (m.remitente_id=u.id AND m.destinatario_id=%s)
+                   OR (m.remitente_id=%s AND m.destinatario_id=u.id)
+                ORDER BY m.creado_en DESC, m.id DESC LIMIT 1) AS ultimo_mensaje,
+               (SELECT m.creado_en FROM mensajes m
+                WHERE (m.remitente_id=u.id AND m.destinatario_id=%s)
+                   OR (m.remitente_id=%s AND m.destinatario_id=u.id)
+                ORDER BY m.creado_en DESC, m.id DESC LIMIT 1) AS fecha_ultimo
+        FROM usuarios u WHERE u.id<>%s
+        ORDER BY fecha_ultimo DESC NULLS LAST, u.nombre ASC
+    """, (mi_id, mi_id, mi_id, mi_id, mi_id))
+    
+    # Filtrar según reglas de rol
+    contactos_filtrados = []
+    for c in contactos:
+        if puede_iniciar_contacto(mi_rol, c["tipo_usuario"]) or (
+            mi_rol == "cliente" and c["tipo_usuario"] == "emprendimiento"
+            and consulta("SELECT id FROM mensajes WHERE remitente_id=%s AND destinatario_id=%s LIMIT 1", (c["id"], mi_id), uno=True)
+        ):
+            contactos_filtrados.append(c)
+
+    contacto_id = request.args.get("con", type=int)
+    
+    # Si se selecciona un vendedor desde un producto y no está en la lista previa, incluirlo
+    if contacto_id and not any(c["id"] == contacto_id for c in contactos_filtrados):
+        vendedor = consulta("SELECT id, nombre, correo, tipo_usuario FROM usuarios WHERE id=%s", (contacto_id,), uno=True)
+        if vendedor and puede_iniciar_contacto(mi_rol, vendedor["tipo_usuario"]):
+            vendedor["ultimo_mensaje"] = None
+            vendedor["fecha_ultimo"] = None
+            contactos_filtrados.insert(0, vendedor)
+        else:
+            contacto_id = None
+
+    return render_template("chat.html", contactos=contactos_filtrados, contacto_id=contacto_id)
