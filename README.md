@@ -1,6 +1,6 @@
 # FeriApp funcional: Flask + MySQL + chat real
 
-Esta versión transforma la maqueta visual en una aplicación web con servidor, cuentas persistentes y mensajería entre usuarios. El chat guarda cada mensaje en MySQL y lo entrega en tiempo real mediante Flask-SocketIO; también consulta periódicamente como respaldo.
+Esta versión transforma la maqueta visual en una aplicación web con servidor, cuentas persistentes y mSensajería entre usuarios. El chat guarda cada mensaje en MySQL y lo entrega en tiempo real mediante Flask-SocketIO; también consulta periódicamente como respaldo.
 
 ## Requisitos
 - Python 3.10 o superior
