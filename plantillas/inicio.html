@@ -73,18 +73,10 @@
                         </div>
                         {% if usuario_id and usuario_id == p.vendedor_id %}
                             <span class="small text-secondary">Tu publicación</span>
-                        {% elif usuario_tipo == 'cliente' and p.vendedor_tipo == 'feriante' %}
+                        {% elif usuario_id %}
                             <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Pedir alimento</a>
-                        {% elif usuario_tipo == 'emprendimiento' and p.vendedor_tipo in ['cliente', 'feriante'] %}
-                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Contactar</a>
-                        {% elif usuario_tipo == 'feriante' and p.vendedor_tipo in ['cliente', 'emprendimiento'] %}
-                            <a class="btn btn-success" href="{{ url_for('chat', con=p.vendedor_id) }}">Contactar</a>
-                        {% elif not usuario_id %}
-                            <a class="btn btn-outline-success" href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>
-                        {% elif usuario_tipo == 'cliente' and p.vendedor_tipo == 'emprendimiento' %}
-                            <span class="small text-secondary">Venta del emprendimiento</span>
                         {% else %}
-                            <span class="small text-secondary">No disponible para tu tipo de cuenta</span>
+                            <a class="btn btn-outline-success" href="{{ url_for('iniciar_sesion') }}">Inicia sesión</a>
                         {% endif %}
                     </div>
                     <div class="seller-line mt-3">
