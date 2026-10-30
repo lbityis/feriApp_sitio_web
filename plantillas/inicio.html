@@ -106,6 +106,7 @@
     {% endif %}
 </section>
 {% endblock %}
+
 @app.route("/chat")
 @login_requerido
 def chat():
@@ -146,4 +147,3 @@ def chat():
             contacto_id = None
 
     return render_template("chat.html", contactos=contactos_filtrados, contacto_id=contacto_id)
-            
